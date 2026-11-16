@@ -493,7 +493,8 @@ export class ForgeTrainingEngine {
 
     if (formattedPrompt) args.push('--formatted-prompt');
 
-    if (req.adapterPath && fs.existsSync(req.adapterPath)) {
+    if (req.adapterPath) {
+      if (!fs.existsSync(req.adapterPath)) throw new Error(`Adapter path not found: ${req.adapterPath}`);
       args.push('--adapter', req.adapterPath);
     }
 

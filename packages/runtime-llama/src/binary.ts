@@ -49,13 +49,13 @@ export class LlamaBinaryManager {
 
   public async findBinary(): Promise<string | null> {
     const bundled = this.findExtractedBinary(path.join(this.runtimeDir, 'llama'));
-    if (bundled) return bundled;
+    if (bundled) return fs.realpathSync(bundled);
     const candidates = ['llama-server', '/opt/homebrew/bin/llama-server', '/usr/local/bin/llama-server', '/usr/bin/llama-server', path.join(os.homedir(), '.local', 'bin', 'llama-server')];
     for (const candidate of candidates) {
-      if (path.isAbsolute(candidate) && fs.existsSync(candidate)) return candidate;
+      if (path.isAbsolute(candidate) && fs.existsSync(candidate)) return fs.realpathSync(candidate);
       try {
         const found = execFileSync(process.platform === 'win32' ? 'where' : 'which', [candidate], { encoding: 'utf-8', timeout: 1000 }).trim().split(/\r?\n/)[0];
-        if (found && fs.existsSync(found)) return found;
+        if (found && fs.existsSync(found)) return fs.realpathSync(found);
       } catch {}
     }
     return null;

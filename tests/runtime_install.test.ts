@@ -38,6 +38,18 @@ describe('runtime installation', () => {
     } finally { fs.rmSync(directory, { recursive: true, force: true }); }
   });
 
+  it.skipIf(process.platform === 'win32')('resolves a server symlink so adjacent shared libraries are found', async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'zaylo-runtime-link-'));
+    try {
+      const nested = path.join(directory, 'llama', 'build', 'bin');
+      fs.mkdirSync(nested, { recursive: true });
+      const binary = path.join(nested, 'llama-server');
+      fs.writeFileSync(binary, 'fixture');
+      fs.symlinkSync(binary, path.join(directory, 'llama', 'llama-server'));
+      expect(await new LlamaBinaryManager(directory).findBinary()).toBe(binary);
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+  });
+
   it('discovers a server in the upstream build/bin archive layout', async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'zaylo-runtime-'));
     try {

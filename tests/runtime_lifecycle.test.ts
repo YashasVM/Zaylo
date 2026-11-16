@@ -28,7 +28,7 @@ function setup() {
 }
 
 describe('runtime lifecycle', () => {
-  it('waits for health, supplies bundled libraries and enables mean-pooled embeddings', async () => {
+  it('waits for health and keeps chat enabled when the binary advertises embedding mode', async () => {
     const { runtime, child, config, binary } = setup();
     const fetcher = vi.fn().mockResolvedValueOnce(new Response('{"status":"loading model"}', { status: 503 })).mockResolvedValue(new Response('{"status":"ok"}'));
     vi.stubGlobal('fetch', fetcher);
@@ -42,7 +42,8 @@ describe('runtime lifecycle', () => {
     expect(runtime.getSupervisor().getState()).toBe('STARTING');
     await vi.advanceTimersByTimeAsync(500);
     expect((await pending).state).toBe('RUNNING');
-    expect(spawn).toHaveBeenCalledWith(binary, expect.arrayContaining(['--embeddings', '--pooling', 'mean']), expect.objectContaining({ env: expect.objectContaining({ LD_LIBRARY_PATH: expect.stringContaining(path.dirname(binary)) }) }));
+    expect(spawn).toHaveBeenCalledWith(binary, expect.not.arrayContaining(['--embeddings']), expect.objectContaining({ env: expect.objectContaining({ LD_LIBRARY_PATH: expect.stringContaining(path.dirname(binary)) }) }));
+    await expect(runtime.embeddings({ model: 'fixture', input: 'Hello' })).rejects.toMatchObject({ code: 'EMBEDDINGS_UNAVAILABLE', statusCode: 503 });
     await runtime.stop();
     expect(child.kill).toHaveBeenCalledWith('SIGTERM');
     expect(execFileSync).not.toHaveBeenCalledWith('pkill', expect.anything(), expect.anything());

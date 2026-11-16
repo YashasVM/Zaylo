@@ -48,7 +48,7 @@ export class LlamaRuntime implements InferenceRuntime {
     return {
       supportedFormats: ['gguf'],
       supportedBackends: backends,
-      supportsEmbeddings: Boolean(binary && this.getHelpText(binary).includes('--pooling')),
+      supportsEmbeddings: false,
       supportsStreaming: true,
       version: 'b4800',
     };
@@ -154,8 +154,7 @@ export class LlamaRuntime implements InferenceRuntime {
     ];
 
     const helpText = this.binaryPath ? this.getHelpText(this.binaryPath) : '';
-    if (helpText.includes('--embeddings') && helpText.includes('--pooling')) args.push('--embeddings', '--pooling', 'mean');
-    else if (helpText.includes('--embedding') && helpText.includes('--pooling')) args.push('--embedding', '--pooling', 'mean');
+    // b4800's --embeddings mode disables completions; keep the managed server in chat mode.
     const supportsFa = helpText ? (helpText.includes('-fa') || helpText.includes('--flash-attn')) : true;
     const faTakesValue = helpText ? (/-fa[^\n]*\[on\|off\|auto\]/i.test(helpText) || /--flash-attn[^\n]*\[on\|off\|auto\]/i.test(helpText)) : true;
 
@@ -389,18 +388,7 @@ export class LlamaRuntime implements InferenceRuntime {
       throw new AppError('llama-server is not running or ready', 'RUNTIME_NOT_READY');
     }
 
-    const res = await fetch(`http://127.0.0.1:${this.currentConfig.port}/v1/embeddings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => 'Unknown error');
-      throw new AppError(`Upstream embeddings error: ${errText}`, 'UPSTREAM_ERROR');
-    }
-
-    return res.json() as Promise<EmbeddingResponse>;
+    throw new AppError('Embeddings are unavailable in the managed llama.cpp chat runtime. The pinned b4800 embedding mode disables chat completions.', 'EMBEDDINGS_UNAVAILABLE', 503);
   }
 
   private async pollHealthUntilReady(child: ChildProcess, port: number, maxAttempts = 60): Promise<boolean> {

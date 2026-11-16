@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createDatabaseAsync, TrainingJobRepository, FineTunedModelRepository } from '@local-ai/database';
 import type { TrainingConfig, TrainingJob, FineTunedModelArtifact } from '@local-ai/shared';
 import { ForgeTrainingEngine } from '../apps/desktop/electron/forge/trainingEngine.js';
@@ -12,6 +12,7 @@ import { scoreResponse } from '../apps/desktop/electron/forge/evaluation.js';
 vi.mock('node:child_process', async importOriginal => ({
   ...await importOriginal<typeof import('node:child_process')>(),
   execFileSync: vi.fn(),
+  spawn: vi.fn(),
 }));
 
 describe('Forge delivery', () => {
@@ -73,6 +74,15 @@ describe('Forge delivery', () => {
     expect(result.success).toBe(true);
     expect(artifacts.getAllModels().find(item => item.type === 'merged')).toMatchObject({ artifactPath: result.outputPath, sizeBytes: 123 });
     expect(execFileSync).toHaveBeenCalledWith('/python with spaces', expect.arrayContaining(['--adapter', artifact.artifactPath]), expect.any(Object));
+  });
+
+  it('rejects a missing requested adapter instead of comparing only the base model', async () => {
+    await expect(engine.compareModels({
+      baseModelPath: job.checkpointPath,
+      adapterPath: path.join(directory, 'missing-adapter'),
+      prompt: 'Hello',
+    })).rejects.toThrow('Adapter path not found');
+    expect(spawn).not.toHaveBeenCalled();
   });
 
   it('uses only persisted held-out records and separates exact match, F1 and validation loss', async () => {

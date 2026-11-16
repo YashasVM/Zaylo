@@ -160,6 +160,8 @@ Zero-config local server, QR mobile pairing, scoped API keys, and interactive cl
 
 Automatic llama.cpp installation uses the pinned upstream release's platform assets: Metal on macOS, detected CUDA on Windows, detected Vulkan on supported x64 hosts, and CPU otherwise. Linux CUDA requires a compatible `llama-server` installed on PATH. Unsupported architecture/backend combinations report an installation error. A backend's availability does not guarantee model support or a particular speed.
 
+The managed b4800 server runs in chat mode. Its exclusive embedding mode disables completions, so `/v1/embeddings` returns `503 EMBEDDINGS_UNAVAILABLE` and document retrieval uses the explicit keyword fallback. Semantic embeddings require a runtime that can provide them without disabling chat.
+
 ---
 
 ## Dynamic Playground and Generative UI
@@ -347,6 +349,9 @@ pnpm build
 pnpm test
 pnpm typecheck
 
+# Optional: exercise real CPU generation with an installed runtime and local GGUF
+node tests/smoke_runtime.mjs /path/to/runtime /path/to/model.gguf
+
 # 5. Launch Desktop in development mode
 pnpm dev:desktop
 ```
@@ -363,6 +368,8 @@ pnpm dist:linux                             # Package Linux .AppImage and .deb (
 Note on macOS, Windows, and Linux CI releases: pushing a tag matching `v*` triggers `.github/workflows/release.yml` across `macos-latest`, `windows-latest`, and `ubuntu-latest`, running `pnpm build`, automated cross-OS integration checks (`tests/loftydb_memory.test.ts`, `tests/capabilities.test.ts`, `tests/theme.test.ts`, `tests/creations_and_visualizations.test.ts`), and native installer packaging.
 
 ---
+
+Runtime verification results and remaining hardware limits are recorded in [PR 8 runtime verification](docs/pr8-runtime-verification.md).
 
 ## License
 
