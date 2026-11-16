@@ -477,6 +477,7 @@ export class ForgeTrainingEngine {
   }
 
   public async compareModels(req: ModelComparisonRequest, formattedPrompt = false): Promise<ModelComparisonResult> {
+    if (req.adapterPath && !fs.existsSync(req.adapterPath)) throw new Error(`Adapter path not found: ${req.adapterPath}`);
     const pyInfo = PythonDetector.detect();
     if (!pyInfo.available || !pyInfo.pythonPath) {
       throw new Error(`Python training environment not available: ${pyInfo.error}`);
@@ -494,7 +495,6 @@ export class ForgeTrainingEngine {
     if (formattedPrompt) args.push('--formatted-prompt');
 
     if (req.adapterPath) {
-      if (!fs.existsSync(req.adapterPath)) throw new Error(`Adapter path not found: ${req.adapterPath}`);
       args.push('--adapter', req.adapterPath);
     }
 
@@ -506,6 +506,7 @@ export class ForgeTrainingEngine {
       let stdout = '';
       let stderr = '';
 
+      child.once('error', reject);
       child.stdout.on('data', (d) => (stdout += d.toString()));
       child.stderr.on('data', (d) => (stderr += d.toString()));
 

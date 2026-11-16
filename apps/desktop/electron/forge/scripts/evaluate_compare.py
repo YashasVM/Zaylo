@@ -31,9 +31,6 @@ def encode_prompt(tokenizer, prompt, already_formatted=False):
     return tokenizer(formatted_prompt, return_tensors="pt")
 
 def main():
-    import torch
-    from transformers import AutoTokenizer, AutoModelForCausalLM
-
     parser = argparse.ArgumentParser(description="Forge Model Comparator")
     parser.add_argument("--base-model", type=str, required=True, help="Path to base model directory")
     parser.add_argument("--adapter", type=str, default="", help="Path to fine-tuned LoRA adapter directory")
@@ -42,6 +39,12 @@ def main():
     parser.add_argument("--temperature", type=float, default=0.7, help="Generation temperature")
     parser.add_argument("--max-tokens", type=int, default=128, help="Max new tokens to generate")
     args = parser.parse_args()
+
+    if args.adapter and not os.path.isdir(args.adapter):
+        raise FileNotFoundError(f'Adapter path not found: {args.adapter}')
+
+    import torch
+    from transformers import AutoTokenizer, AutoModelForCausalLM
 
     device = torch.device("cpu")
     torch_dtype = torch.float32
@@ -80,7 +83,7 @@ def main():
     fine_tuned_response = ""
     ft_duration_ms = 0
 
-    if args.adapter and os.path.exists(args.adapter):
+    if args.adapter:
         from peft import PeftModel
         ft_model = PeftModel.from_pretrained(model, args.adapter)
         ft_model.eval()

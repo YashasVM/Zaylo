@@ -1,6 +1,6 @@
 # PR 8 runtime verification
 
-Verified on Linux x86_64 on 2026-11-16 using one CPU inference thread. No production services, paid APIs, or large model downloads were used. The available RTX 4050 was not used: the reusable Python environment has CPU-only PyTorch.
+Verified on Linux x86_64 on 2026-11-16 using one CPU inference thread. No production services, paid APIs, or large model downloads were used. The reusable Python environment has CPU-only PyTorch. A follow-up used the RTX 4050 through the pinned llama.cpp Vulkan binary; CUDA PyTorch was not installed.
 
 ## Regressions found and fixed
 
@@ -31,8 +31,8 @@ The smoke check loads real weights, checks health, generates text, asserts the e
 
 ## Local checks
 
-- pnpm test --maxWorkers=1 --no-file-parallelism: 138 passed across 19 files.
-- python3 -m unittest discover -s tests -p 'test_forge_workers.py' -v: 7 passed.
+- pnpm test --maxWorkers=1 --no-file-parallelism: 139 passed across 19 files.
+- python3 -m unittest discover -s tests -p 'test_forge_workers.py' -v: 8 passed.
 - pnpm build --concurrency=1 --force: 16 tasks passed without cache. Rebuilt affected packages after the final runtime fix.
 - pnpm typecheck --concurrency=1 --force: 30 tasks passed without cache.
 - The committed real-runtime smoke check passed with the cached SmolLM2 model.
@@ -41,4 +41,29 @@ An initial suite run hit the shared /tmp disk quota: 14 suites failed to load an
 
 ## Remaining limits
 
-GitHub Validate Zaylo requires maintainer approval before it can execute. Local results do not substitute for that CI run or a maintainer review. CUDA, Metal/MPS, Vulkan, Windows/macOS installers, full-size diffusion quality, and production-model fine-tuning remain unverified. Image generation succeeded at the worker boundary; real image API delivery remains covered by stub-based regression tests. Semantic embeddings are explicitly unavailable with the managed pinned chat runtime.
+GitHub Validate Zaylo requires maintainer approval before it can execute. Local results do not substitute for that CI run or a maintainer review. CUDA, Metal/MPS, Windows/macOS installers, full-size diffusion quality, and production-model fine-tuning remain unverified. Real image API delivery is verified below. Semantic embeddings are explicitly unavailable with the managed pinned chat runtime.
+
+## Follow-up: image API delivery and Vulkan
+
+The real ApiServer and ImageEngine loaded the cached PyTorch Diffusers fixture and returned both OpenAI image response formats over loopback HTTP. Two separate requests used 256x256, two steps, guidance 1, seed 123. Both produced the same 180,783-byte PNG with SHA-256 240440cb7a717e1f082d976a3da0844e90af7ae1249f6c3ed03b1312e4c77484. Assertions checked HTTP 200, image count, PNG signature and dimensions, equality with the real worker file, deterministic bytes across requests, URL origin, image/png content type, completed job state, and 404 for an unregistered image. No worker, model, process, or engine was stubbed.
+
+Reproduce after building, with a cached Diffusers repository and complete Python environment:
+
+```sh
+ZAYLO_PYTHON=/path/to/python node tests/smoke_image_api.mjs diffusers/tiny-stable-diffusion-torch /disk/backed/scratch
+```
+
+The smoke check disables network model lookup, uses one CPU thread, deletes only its own generated images, and leaves its SQLite/history scratch records. The first attempt failed safely with HTTP 500 because the old scratch environment contained an incomplete SentencePiece installation from the earlier quota failure. The successful run supplied the complete disk-backed dependency directory through PYTHONPATH. No application change was needed for image delivery.
+
+Downloaded only the 32 MB pinned Vulkan runtime archive, reusing the existing SmolLM2 GGUF. On the RTX 4050, native logs confirmed Vulkan0, 31/31 layers offloaded, a 136.40 MiB model buffer, and 11.25 MiB KV buffer. Real generation returned the capital of France correctly. The managed embedding endpoint remained explicitly unavailable. The reusable runtime smoke accepts an optional GPU layer count:
+
+```sh
+ulimit -c 0
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json node tests/smoke_runtime.mjs /path/to/vulkan-runtime /path/to/model.gguf 999
+```
+
+CPU and Vulkan generation passed, but orderly upstream shutdown did not on either backend: the pinned native binary printed "terminate called without an active exception" and exited with SIGABRT after the application sent SIGTERM. The owned process exited and released its port. The b4800 server source leaves its HTTP thread unjoined at shutdown; SIGINT uses the same handler. This is recorded as an upstream runtime limitation, not a clean GPU lifecycle pass. Resolving it requires a separately validated patched or newer native runtime; changing the pinned release across platforms is outside this focused fix.
+
+Review of Forge failure behavior found an unhandled Python spawn error. A regression reproduced it before the fix; comparison now rejects its promise on the child error event. Missing requested adapters are checked before dependency detection and again by the actual Python comparator before importing model dependencies. The comparator no longer silently switches to base-only output if a supplied adapter disappears. Both boundary tests passed, and real held-out base/adapter evaluation was rerun successfully after the change.
+
+Fresh permission inspection reports upstream pull=true and push/maintain/admin=false. The account cannot approve the action-required fork workflow. A subsequent GraphQL read briefly returned HTTP 401; REST inspection and fork ref reads still worked, without changing credentials. A maintainer must approve Validate Zaylo and review the PR. No approval bypass was attempted.

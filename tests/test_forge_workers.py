@@ -167,6 +167,17 @@ class WorkerDeliveryTests(unittest.TestCase):
                     exporter.export_gguf(str(root / 'base'), str(target))
                 self.assertEqual(target.read_bytes(), b'GGUFtest')
 
+    def test_comparator_rejects_a_requested_missing_adapter(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run([
+                sys.executable, str(FORGE / 'evaluate_compare.py'),
+                '--base-model', directory, '--adapter', str(Path(directory) / 'missing'),
+                '--prompt', 'Hello',
+            ], capture_output=True, text=True, timeout=10)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('Adapter path not found', result.stderr)
+            self.assertNotIn('fineTunedResponse', result.stdout)
+
     def test_unavailable_diffusion_model_reports_error_without_fake_image(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

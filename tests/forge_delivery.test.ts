@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
+import { PassThrough } from 'node:stream';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync, spawn } from 'node:child_process';
+import { ChildProcess, execFileSync, spawn } from 'node:child_process';
 import { createDatabaseAsync, TrainingJobRepository, FineTunedModelRepository } from '@local-ai/database';
 import type { TrainingConfig, TrainingJob, FineTunedModelArtifact } from '@local-ai/shared';
 import { ForgeTrainingEngine } from '../apps/desktop/electron/forge/trainingEngine.js';
@@ -83,6 +84,18 @@ describe('Forge delivery', () => {
       prompt: 'Hello',
     })).rejects.toThrow('Adapter path not found');
     expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it('rejects when the detected Python executable fails to spawn', async () => {
+    const child = new ChildProcess();
+    Object.defineProperties(child, {
+      stdout: { value: new PassThrough() }, stderr: { value: new PassThrough() },
+    });
+    vi.mocked(spawn).mockReturnValue(child);
+    const pending = engine.compareModels({ baseModelPath: job.checkpointPath, adapterPath: artifact.artifactPath, prompt: 'Hello' });
+    const rejected = expect(pending).rejects.toThrow('spawn ENOENT');
+    child.emit('error', new Error('spawn ENOENT'));
+    await rejected;
   });
 
   it('uses only persisted held-out records and separates exact match, F1 and validation loss', async () => {
