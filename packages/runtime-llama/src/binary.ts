@@ -4,24 +4,26 @@ import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import { AppError } from '@local-ai/shared';
 
+export const LLAMA_VERSION = 'b5200';
+
 type Backend = 'cpu' | 'metal' | 'cuda' | 'vulkan';
 
 export function selectLlamaAssets(platform: string, arch: string, backend: Backend): string[] {
   if (platform === 'darwin' && (arch === 'arm64' || arch === 'x64') && (backend === 'cpu' || backend === 'metal')) {
-    return [`llama-b4800-bin-macos-${arch}.zip`];
+    return [`llama-${LLAMA_VERSION}-bin-macos-${arch}.zip`];
   }
   if (platform === 'linux' && (arch === 'arm64' || arch === 'x64')) {
     if (backend === 'metal') throw new AppError('Metal is supported only on macOS.');
-    if (backend === 'cuda') throw new AppError('llama.cpp b4800 has no Linux CUDA archive. Install a CUDA-enabled llama-server manually.');
-    if (backend === 'vulkan' && arch !== 'x64') throw new AppError('llama.cpp b4800 has no Linux ARM64 Vulkan archive.');
-    return [`llama-b4800-bin-ubuntu-${backend === 'vulkan' ? 'vulkan-' : ''}${arch}.zip`];
+    if (backend === 'cuda') throw new AppError(`llama.cpp ${LLAMA_VERSION} has no Linux CUDA archive. Install a CUDA-enabled llama-server manually.`);
+    if (backend === 'vulkan' && arch !== 'x64') throw new AppError(`llama.cpp ${LLAMA_VERSION} has no Linux ARM64 Vulkan archive.`);
+    return [`llama-${LLAMA_VERSION}-bin-ubuntu-${backend === 'vulkan' ? 'vulkan-' : ''}${arch}.zip`];
   }
-  if (platform === 'win32' && arch === 'arm64' && backend === 'cpu') return ['llama-b4800-bin-win-msvc-arm64.zip'];
+  if (platform === 'win32' && arch === 'arm64' && backend === 'cpu') return [`llama-${LLAMA_VERSION}-bin-win-msvc-arm64.zip`];
   if (platform === 'win32' && arch === 'x64' && backend !== 'metal') {
-    if (backend === 'cuda') return ['llama-b4800-bin-win-cuda-cu12.4-x64.zip', 'cudart-llama-bin-win-cu12.4-x64.zip'];
-    return [`llama-b4800-bin-win-${backend === 'vulkan' ? 'vulkan' : 'noavx'}-x64.zip`];
+    if (backend === 'cuda') return [`llama-${LLAMA_VERSION}-bin-win-cuda-cu12.4-x64.zip`, 'cudart-llama-bin-win-cu12.4-x64.zip'];
+    return [`llama-${LLAMA_VERSION}-bin-win-${backend === 'vulkan' ? 'vulkan' : 'noavx'}-x64.zip`];
   }
-  throw new AppError(`No compatible llama.cpp b4800 archive for ${platform} ${arch} (${backend}). Install llama-server manually.`);
+  throw new AppError(`No compatible llama.cpp ${LLAMA_VERSION} archive for ${platform} ${arch} (${backend}). Install llama-server manually.`);
 }
 
 export class LlamaBinaryManager {
@@ -48,7 +50,8 @@ export class LlamaBinaryManager {
   }
 
   public async findBinary(): Promise<string | null> {
-    const bundled = this.findExtractedBinary(path.join(this.runtimeDir, 'llama'));
+    const bundled = this.findExtractedBinary(path.join(this.runtimeDir, 'llama', LLAMA_VERSION))
+      ?? this.findExtractedBinary(path.join(this.runtimeDir, 'llama'));
     if (bundled) return fs.realpathSync(bundled);
     const candidates = ['llama-server', '/opt/homebrew/bin/llama-server', '/usr/local/bin/llama-server', '/usr/bin/llama-server', path.join(os.homedir(), '.local', 'bin', 'llama-server')];
     for (const candidate of candidates) {
@@ -62,7 +65,7 @@ export class LlamaBinaryManager {
   }
 
   public async install(): Promise<{ success: boolean; path?: string; error?: string }> {
-    const destDir = path.join(this.runtimeDir, 'llama');
+    const destDir = path.join(this.runtimeDir, 'llama', LLAMA_VERSION);
     fs.mkdirSync(destDir, { recursive: true });
     try {
       let backend: Backend = process.platform === 'darwin' ? 'metal' : 'cpu';
@@ -79,7 +82,7 @@ export class LlamaBinaryManager {
         } catch {}
       }
       for (const assetName of selectLlamaAssets(process.platform, process.arch, backend)) {
-        const response = await fetch(`https://github.com/ggml-org/llama.cpp/releases/download/b4800/${assetName}`);
+        const response = await fetch(`https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_VERSION}/${assetName}`);
         if (!response.ok) throw new AppError(`Failed to download ${assetName}: HTTP ${response.status}`);
         const zipPath = path.join(destDir, assetName);
         fs.writeFileSync(zipPath, Buffer.from(await response.arrayBuffer()));

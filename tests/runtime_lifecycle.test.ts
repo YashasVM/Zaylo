@@ -51,6 +51,20 @@ describe('runtime lifecycle', () => {
     expect(child.kill).toHaveBeenCalledTimes(1);
   });
 
+  it('uses the upgraded binary after reinstalling in the same runtime instance', async () => {
+    const { runtime, config } = setup();
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(new Response('{"status":"ok"}'))));
+    const first = runtime.start(config); await vi.advanceTimersByTimeAsync(400); await first;
+    await runtime.stop();
+    const upgraded = path.resolve('/fixtures/llama/b5200/build/bin/llama-server');
+    vi.spyOn(LlamaBinaryManager.prototype, 'install').mockResolvedValue({ success: true, path: upgraded });
+    await runtime.install();
+    vi.mocked(LlamaBinaryManager.prototype.findBinary).mockResolvedValue(upgraded);
+    const second = runtime.start(config); await vi.advanceTimersByTimeAsync(400); await second;
+    expect(spawn).toHaveBeenLastCalledWith(upgraded, expect.any(Array), expect.any(Object));
+    await runtime.stop();
+  });
+
   it('leaves a busy port and unrelated processes alone', async () => {
     const { runtime, child, config, binary } = setup();
     ports.busy.add(config.port);

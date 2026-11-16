@@ -67,3 +67,17 @@ CPU and Vulkan generation passed, but orderly upstream shutdown did not on eithe
 Review of Forge failure behavior found an unhandled Python spawn error. A regression reproduced it before the fix; comparison now rejects its promise on the child error event. Missing requested adapters are checked before dependency detection and again by the actual Python comparator before importing model dependencies. The comparator no longer silently switches to base-only output if a supplied adapter disappears. Both boundary tests passed, and real held-out base/adapter evaluation was rerun successfully after the change.
 
 Fresh permission inspection reports upstream pull=true and push/maintain/admin=false. The account cannot approve the action-required fork workflow. A subsequent GraphQL read briefly returned HTTP 401; REST inspection and fork ref reads still worked, without changing credentials. A maintainer must approve Validate Zaylo and review the PR. No approval bypass was attempted.
+
+
+## Shutdown defect fixed with b5200
+
+The managed installer is now pinned to [llama.cpp b5200](https://github.com/ggml-org/llama.cpp/releases/tag/b5200). The b4800 smoke reproduced `terminate called without an active exception` and exit `{code: null, signal: "SIGABRT"}` after successful chat. Its server returns with an unjoined HTTP thread. [b5200 server cleanup](https://github.com/ggml-org/llama.cpp/blob/b5200/examples/server/server.cpp) joins that thread before returning.
+
+- The committed smoke now asserts exit code 0 with no signal, verifies the listener is gone, repeats stop safely, and performs a second start/chat/stop cycle in the same runtime instance. The old CPU binary fails the exit assertion.
+- Actual official b5200 Linux CPU and Vulkan binaries both passed two cycles, with exit `{code: 0, signal: null}` every time. Vulkan used the RTX 4050 with 31/31 layers offloaded. No forced kill or abort suppression was added.
+- A real installer/extractor run using the downloaded official release ZIP upgraded a scratch legacy installation. Versioned installation and lookup prefer b5200 over stale root binaries/symlinks. The upgraded installation then passed both CPU chat/shutdown cycles. Release asset names were checked against the official b5200 release for all supported platform/backend selections.
+- Final checks: 140 TypeScript tests passed across 19 files; runtime package build/typecheck and whitespace checks passed.
+- Existing installations need to rerun the runtime installer; discovery still accepts manually installed or legacy binaries. Successful reinstall clears the runtime's cached executable path before its next start.
+- Initial verification hit the existing `/tmp` quota; successful tests used a worktree-local TMPDIR. An attempted immediate port rebind hit normal socket reuse state; the smoke checks `ECONNREFUSED` after shutdown instead, which directly proves the server is no longer listening.
+
+Windows/macOS native execution, CUDA and Metal remain unverified. The release upgrade does not add semantic embeddings; the managed chat runtime still reports them unavailable. Earlier b4800 results above are historical; their shutdown limitation is superseded for b5200 installations.

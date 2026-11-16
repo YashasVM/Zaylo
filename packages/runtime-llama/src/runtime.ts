@@ -17,7 +17,7 @@ import {
   RuntimeHealth,
   ProcessSupervisor,
 } from '@local-ai/runtimes';
-import { LlamaBinaryManager } from './binary.js';
+import { LLAMA_VERSION, LlamaBinaryManager } from './binary.js';
 
 export class LlamaRuntime implements InferenceRuntime {
   public readonly id = 'llama.cpp';
@@ -50,7 +50,7 @@ export class LlamaRuntime implements InferenceRuntime {
       supportedBackends: backends,
       supportsEmbeddings: false,
       supportsStreaming: true,
-      version: 'b4800',
+      version: LLAMA_VERSION,
     };
   }
 
@@ -62,7 +62,9 @@ export class LlamaRuntime implements InferenceRuntime {
 
   public async install(): Promise<{ success: boolean; path?: string; error?: string }> {
     const binManager = new LlamaBinaryManager(this.runtimeDir);
-    return binManager.install();
+    const result = await binManager.install();
+    if (result.success) this.binaryPath = undefined;
+    return result;
   }
 
   private static helpTextCache: Map<string, string> = new Map();
@@ -154,7 +156,7 @@ export class LlamaRuntime implements InferenceRuntime {
     ];
 
     const helpText = this.binaryPath ? this.getHelpText(this.binaryPath) : '';
-    // b4800's --embeddings mode disables completions; keep the managed server in chat mode.
+    // The pinned server's --embeddings mode disables completions; keep the managed server in chat mode.
     const supportsFa = helpText ? (helpText.includes('-fa') || helpText.includes('--flash-attn')) : true;
     const faTakesValue = helpText ? (/-fa[^\n]*\[on\|off\|auto\]/i.test(helpText) || /--flash-attn[^\n]*\[on\|off\|auto\]/i.test(helpText)) : true;
 
@@ -388,7 +390,7 @@ export class LlamaRuntime implements InferenceRuntime {
       throw new AppError('llama-server is not running or ready', 'RUNTIME_NOT_READY');
     }
 
-    throw new AppError('Embeddings are unavailable in the managed llama.cpp chat runtime. The pinned b4800 embedding mode disables chat completions.', 'EMBEDDINGS_UNAVAILABLE', 503);
+    throw new AppError('Embeddings are unavailable in the managed llama.cpp chat runtime. The pinned embedding mode disables chat completions.', 'EMBEDDINGS_UNAVAILABLE', 503);
   }
 
   private async pollHealthUntilReady(child: ChildProcess, port: number, maxAttempts = 60): Promise<boolean> {

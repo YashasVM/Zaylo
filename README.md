@@ -160,7 +160,7 @@ Zero-config local server, QR mobile pairing, scoped API keys, and interactive cl
 
 Automatic llama.cpp installation uses the pinned upstream release's platform assets: Metal on macOS, detected CUDA on Windows, detected Vulkan on supported x64 hosts, and CPU otherwise. Linux CUDA requires a compatible `llama-server` installed on PATH. Unsupported architecture/backend combinations report an installation error. A backend's availability does not guarantee model support or a particular speed.
 
-The managed b4800 server runs in chat mode. Its exclusive embedding mode disables completions, so `/v1/embeddings` returns `503 EMBEDDINGS_UNAVAILABLE` and document retrieval uses the explicit keyword fallback. Semantic embeddings require a runtime that can provide them without disabling chat.
+The managed runtime is pinned to llama.cpp b5200, which fixes the b4800 shutdown abort. Existing b4800 installations must be reinstalled through the runtime installer to receive the corrected binary. The managed b5200 server runs in chat mode. Its exclusive embedding mode disables completions, so `/v1/embeddings` returns `503 EMBEDDINGS_UNAVAILABLE` and document retrieval uses the explicit keyword fallback. Semantic embeddings require a runtime that can provide them without disabling chat.
 
 ---
 
